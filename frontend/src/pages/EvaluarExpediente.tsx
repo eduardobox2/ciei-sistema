@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// Detecta automáticamente la URL del backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Interfaz para el tipado de TypeScript
 interface Documento {
   id: number;
   tipo_anexo: string;
@@ -15,27 +17,43 @@ export default function EvaluarExpediente() {
   const { id } = useParams();
   const navigate = useNavigate();
   
+  // ==========================================
+  // ESTADOS DEL SISTEMA
+  // ==========================================
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [datosProyecto, setDatosProyecto] = useState<any>(null); 
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState('');
-  const [comentarios, setComentarios] = useState('');
 
+  // Estados del Visor Principal (Columna Derecha)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState<string>('');
   const [previewType, setPreviewType] = useState<string>('');
 
+  // Estados del Formulario de Dictamen Avanzado
+  const [dictamen, setDictamen] = useState({
+    estadoElegido: '',
+    comentariosGenerales: '',
+    obsMetodologia: '',
+    obsConsentimiento: '',
+    obsInstrumentos: '',
+    obsRiesgos: ''
+  });
+
+  // ==========================================
+  // EFECTO DE CARGA INICIAL
+  // ==========================================
   useEffect(() => {
     const cargarDatosYAnexos = async () => {
       try {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        // 1. Cargamos los Anexos (Archivos)
+        // 1. Cargar el historial de documentos
         const resDocs = await axios.get(`${API_URL}/api/documentos/solicitud/${id}`, { headers });
         setDocumentos(resDocs.data.documentos || []);
 
-        // 2. Cargamos los Datos Generales del Proyecto
+        // 2. Cargar los datos de la ficha técnica del proyecto
         try {
           const resDatos = await axios.get(`${API_URL}/api/solicitudes/${id}`, { headers });
           setDatosProyecto(resDatos.data.solicitud || resDatos.data || null);
@@ -50,26 +68,51 @@ export default function EvaluarExpediente() {
     cargarDatosYAnexos();
   }, [id]);
 
-  const procesarDictamen = async (estadoElegido: string) => {
-    if (window.confirm(`¿Está seguro de cambiar el estado de este expediente a ${estadoElegido.toUpperCase()}?`)) {
+  // ==========================================
+  // FUNCIONES PRINCIPALES
+  // ==========================================
+
+  // Procesar y enviar el formulario de evaluación
+  const procesarDictamen = async () => {
+    if (!dictamen.estadoElegido) {
+      setMensaje("⚠️ Debe seleccionar un resultado de evaluación (Aprobado, Observado o Rechazado).");
+      return;
+    }
+
+    if (window.confirm(`¿Está seguro de emitir este dictamen oficial como ${dictamen.estadoElegido.toUpperCase()}?`)) {
       setCargando(true);
+      setMensaje('');
+
+      // Compilar el texto final dependiendo de lo que el revisor llenó
+      let comentarioFinal = dictamen.comentariosGenerales;
+      
+      // Si el proyecto está observado, estructuramos el reporte con todas las cajas de texto
+      if (dictamen.estadoElegido === 'observado') {
+        comentarioFinal = `--- COMENTARIOS GENERALES ---\n${dictamen.comentariosGenerales}\n\n`;
+        if (dictamen.obsMetodologia) comentarioFinal += `--- 1. OBSERVACIONES EN METODOLOGÍA ---\n${dictamen.obsMetodologia}\n\n`;
+        if (dictamen.obsConsentimiento) comentarioFinal += `--- 2. CONSENTIMIENTO INFORMADO ---\n${dictamen.obsConsentimiento}\n\n`;
+        if (dictamen.obsInstrumentos) comentarioFinal += `--- 3. INSTRUMENTOS DE RECOLECCIÓN ---\n${dictamen.obsInstrumentos}\n\n`;
+        if (dictamen.obsRiesgos) comentarioFinal += `--- 4. EVALUACIÓN DE RIESGOS ---\n${dictamen.obsRiesgos}\n\n`;
+      }
+
       try {
         const token = localStorage.getItem('token');
         await axios.put(`${API_URL}/api/solicitudes/${id}/dictamen`, 
-          { nuevo_estado: estadoElegido, comentarios: comentarios },
+          { nuevo_estado: dictamen.estadoElegido, comentarios: comentarioFinal },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        alert(`Expediente actualizado y notificado con éxito.`);
-        navigate('/comite'); 
+        alert(`Expediente evaluado y notificado con éxito al investigador.`);
+        navigate('/comite'); // Regresamos a la bandeja principal del revisor
       } catch (error) {
-        setMensaje('Error al procesar el dictamen en el servidor.');
+        setMensaje('❌ Error al procesar el dictamen en el servidor.');
       } finally {
         setCargando(false);
       }
     }
   };
 
+  // Descargar el documento original al PC del Revisor
   const manejarDescarga = async (documentoId: number, nombreOriginal: string) => {
     try {
       const token = localStorage.getItem('token');
@@ -92,6 +135,7 @@ export default function EvaluarExpediente() {
     }
   };
 
+  // Previsualizar el PDF en el iFrame de la derecha
   const manejarPrevisualizacion = async (documentoId: number, nombreOriginal: string) => {
     try {
       const token = localStorage.getItem('token');
@@ -117,11 +161,7 @@ export default function EvaluarExpediente() {
     }
   };
 
-  // ==========================================
-  // FUNCIONES DE MEJORA VISUAL (KODIAK)
-  // ==========================================
-  
-  // Formatear la fecha para que se vea bonita (Ej: 31 may 2026, 14:30)
+  // Formato elegante para la fecha de subida
   const formatearFecha = (fechaISO: string) => {
     if (!fechaISO) return 'Fecha desconocida';
     const fecha = new Date(fechaISO);
@@ -131,32 +171,50 @@ export default function EvaluarExpediente() {
     });
   };
 
-  // Ordenar documentos: El más nuevo SIEMPRE arriba
+  // Ordenar documentos: El más nuevo SIEMPRE se pinta arriba de la lista
   const documentosOrdenados = [...documentos].sort((a, b) => 
     new Date(b.fecha_subida).getTime() - new Date(a.fecha_subida).getTime()
   );
 
+  // Alerta de subsanación: si hay más de 1 documento, significa que subieron una versión 2
+  const esSubsanacion = documentosOrdenados.length > 1;
+
+  // ==========================================
+  // RENDERIZADO VISUAL (UI)
+  // ==========================================
   return (
     <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
+      
+      {/* NAVEGACIÓN SUPERIOR */}
       <nav className="bg-slate-900 text-white p-4 border-b-4 border-blue-500 shadow-md">
-        <div className="max-w-6xl mx-auto flex items-center gap-4">
-          <button onClick={() => navigate('/comite')} className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors">
-            ← Volver a la Bandeja
-          </button>
-          <span className="font-bold text-lg">Evaluación Técnica | Expediente #{id}</span>
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/comite')} className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors">
+              ← Volver a la Bandeja
+            </button>
+            <span className="font-bold text-lg">Evaluación Técnica | Expediente #{id}</span>
+          </div>
+          {esSubsanacion && (
+            <span className="bg-teal-500 text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2 animate-pulse shadow-[0_0_15px_rgba(20,184,166,0.5)]">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Revisando Subsanación
+            </span>
+          )}
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 py-8 w-full flex-1 flex flex-col lg:flex-row gap-6">
+      <main className="max-w-[1400px] mx-auto px-4 py-6 w-full flex-1 flex flex-col lg:flex-row gap-6 h-[calc(100vh-76px)]">
         
-        {/* COLUMNA IZQUIERDA */}
-        <div className="w-full lg:w-1/3 space-y-6 flex flex-col h-[800px] overflow-y-auto pr-2 pb-4">
+        {/* ========================================================= */}
+        {/* COLUMNA IZQUIERDA: Panel de Revisión, Archivos y Formularios */}
+        {/* ========================================================= */}
+        <div className="w-full lg:w-[480px] flex flex-col gap-5 h-full overflow-y-auto pr-2 pb-4">
           
-          {mensaje && <div className="bg-red-100 text-red-700 p-4 rounded-xl font-bold shrink-0">{mensaje}</div>}
+          {mensaje && <div className="bg-red-100 text-red-700 p-4 rounded-xl font-bold shrink-0 shadow-sm border border-red-200">{mensaje}</div>}
 
-          {/* Bloque 1: Datos Generales */}
+          {/* TARJETA 1: Ficha Técnica del Proyecto */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 shrink-0">
-            <h2 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
               📋 Datos del Proyecto
             </h2>
             
@@ -182,7 +240,7 @@ export default function EvaluarExpediente() {
                   <div>
                     <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tipo</span>
                     <span className="bg-blue-100 text-blue-700 font-bold text-[10px] px-2 py-1 rounded uppercase tracking-wider">
-                      {datosProyecto.tipo_investigacion || 'Estándar'}
+                      {datosProyecto.tipo_investigacion?.replace('_', ' ') || 'Estándar'}
                     </span>
                   </div>
                   <div>
@@ -191,19 +249,12 @@ export default function EvaluarExpediente() {
                   </div>
                 </div>
 
-                {datosProyecto.investigadores_asociados && (
-                  <div>
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Equipo de Investigación</span>
-                    <p className="font-medium text-slate-600 text-xs">{datosProyecto.investigadores_asociados}</p>
-                  </div>
-                )}
-
                 {(datosProyecto.resumen || datosProyecto.objetivos) && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-4">
                     {datosProyecto.resumen && (
                       <div>
                         <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Resumen Científico</span>
-                        <div className="text-xs text-slate-600 max-h-24 overflow-y-auto pr-1">
+                        <div className="text-xs text-slate-600 max-h-24 overflow-y-auto pr-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
                           {datosProyecto.resumen}
                         </div>
                       </div>
@@ -211,7 +262,7 @@ export default function EvaluarExpediente() {
                     {datosProyecto.objetivos && (
                       <div>
                         <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Objetivos</span>
-                        <div className="text-xs text-slate-600 max-h-24 overflow-y-auto pr-1 whitespace-pre-wrap">
+                        <div className="text-xs text-slate-600 max-h-24 overflow-y-auto pr-1 whitespace-pre-wrap bg-slate-50 p-2 rounded-lg border border-slate-100">
                           {datosProyecto.objetivos}
                         </div>
                       </div>
@@ -221,19 +272,19 @@ export default function EvaluarExpediente() {
               </div>
             ) : (
               <div className="py-4 text-center">
-                <p className="text-xs font-bold text-slate-400 uppercase animate-pulse">Buscando información...</p>
+                <p className="text-xs font-bold text-slate-400 uppercase animate-pulse">Cargando información técnica...</p>
               </div>
             )}
           </div>
 
-          {/* Bloque 2: Archivos con FECHAS Y ORDEN */}
+          {/* TARJETA 2: Historial de Documentos del Investigador */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 shrink-0">
-            <h2 className="text-lg font-black text-slate-900 mb-4 flex items-center justify-between">
-              Archivos Adjuntos
-              <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">Más recientes arriba</span>
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
+              Archivos del Investigador
+              <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">Más recientes arriba</span>
             </h2>
             
-            <div className="flex flex-col gap-3 max-h-[350px] overflow-y-auto pr-2">
+            <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-2">
               {documentosOrdenados.length === 0 ? (
                 <p className="text-slate-500 py-4 text-sm text-center">Este expediente no contiene archivos.</p>
               ) : (
@@ -242,23 +293,16 @@ export default function EvaluarExpediente() {
                   const numeroVersion = documentosOrdenados.length - index;
 
                   return (
-                    <div 
-                      key={doc.id} 
-                      className={`p-3 rounded-xl border transition-all ${
-                        esElMasNuevo ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300'
-                      }`}
-                    >
+                    <div key={doc.id} className={`p-3 rounded-xl border transition-all ${esElMasNuevo ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-white border-slate-100'}`}>
                       <div className="flex items-start gap-3 mb-3">
                         <div className="shrink-0 pt-0.5">
                           {esElMasNuevo ? (
-                            <span className="px-2 py-1 text-[10px] font-black bg-blue-600 text-white rounded shadow-sm flex flex-col items-center leading-tight">
-                              <span>ACTUAL</span>
-                              <span className="opacity-80">V{numeroVersion}</span>
+                            <span className="px-2 py-1 text-[10px] font-black bg-blue-600 text-white rounded flex flex-col items-center leading-tight">
+                              <span>ACTUAL</span><span className="opacity-80">V{numeroVersion}</span>
                             </span>
                           ) : (
                             <span className="px-2 py-1 text-[10px] font-black bg-slate-200 text-slate-600 rounded flex flex-col items-center leading-tight">
-                              <span>HISTORIAL</span>
-                              <span className="opacity-80">V{numeroVersion}</span>
+                              <span>HISTORIAL</span><span className="opacity-80">V{numeroVersion}</span>
                             </span>
                           )}
                         </div>
@@ -274,18 +318,10 @@ export default function EvaluarExpediente() {
                       </div>
                       
                       <div className="flex gap-2 w-full">
-                        <button 
-                          onClick={() => manejarPrevisualizacion(doc.id, doc.nombre_archivo_original)}
-                          className="flex-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 px-2 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1"
-                        >
-                          👁️ Ver visor
+                        <button onClick={() => manejarPrevisualizacion(doc.id, doc.nombre_archivo_original)} className="flex-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 px-2 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1">
+                          👁️ Abrir en Visor
                         </button>
-                        <button 
-                          onClick={() => manejarDescarga(doc.id, doc.nombre_archivo_original)}
-                          className={`flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                            esElMasNuevo ? 'text-blue-700 bg-blue-100 hover:bg-blue-200' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-                          }`}
-                        >
+                        <button onClick={() => manejarDescarga(doc.id, doc.nombre_archivo_original)} className={`flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${esElMasNuevo ? 'text-blue-700 bg-blue-100 hover:bg-blue-200' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'}`}>
                           ⬇️ Descargar
                         </button>
                       </div>
@@ -296,67 +332,125 @@ export default function EvaluarExpediente() {
             </div>
           </div>
 
-          {/* Bloque 3: Dictamen */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-200 shrink-0 mb-4">
-            <h2 className="text-lg font-black text-slate-900 mb-2">Dictamen Oficial</h2>
-            <textarea
-              rows={4}
-              value={comentarios}
-              onChange={(e) => setComentarios(e.target.value)}
-              placeholder="Escriba aquí las observaciones o conclusiones éticas..."
-              className="w-full px-3 py-3 mb-4 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
-            />
-            <div className="flex flex-col gap-2">
-              <button disabled={cargando} onClick={() => procesarDictamen('aprobado')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all text-sm">
-                Aprobar Proyecto 👍
-              </button>
-              <button disabled={cargando} onClick={() => procesarDictamen('observado')} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-all text-sm">
-                Observar / Corregir ⚠️
-              </button>
-              <button disabled={cargando} onClick={() => procesarDictamen('rechazado')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all text-sm">
-                Rechazar ❌
-              </button>
+          {/* TARJETA 3: Formulario de Dictamen Avanzado */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-200 shrink-0">
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">⚖️ Emisión de Dictamen</h2>
+            
+            <div className="space-y-4">
+              
+              {/* Selector de Resultado */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Resultado de la Revisión</label>
+                <select 
+                  value={dictamen.estadoElegido}
+                  onChange={(e) => setDictamen({...dictamen, estadoElegido: e.target.value})}
+                  className="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm font-black text-slate-700 outline-none focus:border-blue-500 bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <option value="" disabled>-- Seleccione una Decisión Oficial --</option>
+                  <option value="aprobado">🟢 APROBADO (Cumple los requisitos éticos)</option>
+                  <option value="observado">🟠 OBSERVADO (Tiene errores o faltantes)</option>
+                  <option value="rechazado">🔴 RECHAZADO (No cumple requisitos éticos)</option>
+                </select>
+              </div>
+
+              {/* Comentarios Generales */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Comentarios Generales</label>
+                <textarea
+                  rows={3} 
+                  value={dictamen.comentariosGenerales} 
+                  onChange={(e) => setDictamen({...dictamen, comentariosGenerales: e.target.value})}
+                  placeholder="Redacte una síntesis o conclusión de su evaluación..."
+                  className="w-full px-3 py-3 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm font-medium"
+                />
+              </div>
+
+              {/* Acordeón de Observaciones Detalladas (Aparece al seleccionar Observado) */}
+              {dictamen.estadoElegido === 'observado' && (
+                <div className="space-y-3 bg-amber-50/50 p-4 rounded-xl border border-amber-200 shadow-inner animate-fade-in">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span className="text-[11px] font-black text-amber-800 uppercase tracking-widest block">Observaciones Detalladas</span>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">1. Metodología</label>
+                    <textarea rows={2} placeholder="Errores en la muestra, procedimiento..." value={dictamen.obsMetodologia} onChange={(e) => setDictamen({...dictamen, obsMetodologia: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-400 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">2. Consentimiento Informado</label>
+                    <textarea rows={2} placeholder="Falta documento, texto poco claro..." value={dictamen.obsConsentimiento} onChange={(e) => setDictamen({...dictamen, obsConsentimiento: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-400 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">3. Instrumentos de Recolección</label>
+                    <textarea rows={2} placeholder="Encuestas no validadas, falta ficha..." value={dictamen.obsInstrumentos} onChange={(e) => setDictamen({...dictamen, obsInstrumentos: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-400 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">4. Evaluación de Riesgos</label>
+                    <textarea rows={2} placeholder="No se mitigan los riesgos a pacientes..." value={dictamen.obsRiesgos} onChange={(e) => setDictamen({...dictamen, obsRiesgos: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-400 bg-white" />
+                  </div>
+                </div>
+              )}
             </div>
+
+            <button 
+              disabled={cargando || !dictamen.estadoElegido} 
+              onClick={procesarDictamen} 
+              className={`w-full mt-6 py-4 rounded-xl font-black text-sm transition-all shadow-lg text-white flex items-center justify-center gap-2 ${
+                cargando || !dictamen.estadoElegido ? 'bg-slate-300 shadow-none cursor-not-allowed text-slate-500' :
+                dictamen.estadoElegido === 'aprobado' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30' :
+                dictamen.estadoElegido === 'observado' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' :
+                'bg-red-600 hover:bg-red-700 shadow-red-600/30'
+              }`}
+            >
+              {cargando ? 'Procesando en el servidor...' : 'Registrar y Notificar Dictamen Oficial'}
+            </button>
           </div>
+
         </div>
 
-        {/* COLUMNA DERECHA: Visor Interactivo Gigante */}
-        <div className="w-full lg:w-2/3 bg-slate-300 rounded-2xl shadow-inner border border-slate-300 overflow-hidden flex flex-col h-[800px]">
+        {/* ========================================================= */}
+        {/* COLUMNA DERECHA: Visor Interactivo (iFrame) */}
+        {/* ========================================================= */}
+        <div className="w-full lg:w-[calc(100%-480px)] bg-slate-300 rounded-2xl shadow-inner border border-slate-300 overflow-hidden flex flex-col h-full relative">
           {previewUrl ? (
             <>
               <div className="bg-slate-800 text-white px-4 py-3 flex justify-between items-center shrink-0">
-                <span className="font-bold text-sm truncate pr-4">📄 {previewName}</span>
-                <button onClick={() => { setPreviewUrl(null); setPreviewName(''); }} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-bold transition-colors">
+                <div className="flex items-center gap-3 truncate pr-4">
+                  <span className="bg-blue-500 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">Visor Activo</span>
+                  <span className="font-bold text-sm truncate">{previewName}</span>
+                </div>
+                <button onClick={() => { setPreviewUrl(null); setPreviewName(''); }} className="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shrink-0 shadow-sm">
                   Cerrar Visor
                 </button>
               </div>
               
-              <div className="flex-1 w-full bg-white relative">
+              <div className="flex-1 w-full bg-[#525659] relative">
                 {previewType === 'pdf' ? (
                   <iframe src={`${previewUrl}#toolbar=0`} className="w-full h-full border-none" title="Visor PDF" />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-50">
                     <span className="text-6xl mb-4">📝</span>
-                    <h3 className="text-xl font-black text-slate-800 mb-2">Archivo Word Detectado</h3>
+                    <h3 className="text-xl font-black text-slate-800 mb-2">Archivo de Microsoft Word</h3>
                     <p className="text-slate-600 font-medium max-w-md mb-6">
-                      Los navegadores web no pueden previsualizar documentos de Microsoft Word de forma segura de manera nativa.
+                      El navegador web no puede abrir documentos Word de forma segura. Descargue el archivo para revisarlo localmente.
                     </p>
                     <button 
                       onClick={() => manejarDescarga(documentos.find(d => d.nombre_archivo_original === previewName)?.id || 0, previewName)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-95"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                      Descargar archivo original
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4V4"/></svg>
+                      Descargar archivo .DOCX
                     </button>
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <svg className="w-20 h-20 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <p className="font-bold text-lg">Visor de Documentos Inactivo</p>
-              <p className="text-sm mt-1">Seleccione "Ver" en algún archivo de la lista para mostrarlo aquí.</p>
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-200/50">
+              <svg className="w-24 h-24 mb-4 opacity-40 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <p className="font-bold text-xl text-slate-500">Mesa de Auditoría</p>
+              <p className="text-sm mt-2 text-slate-500 max-w-sm text-center">Seleccione el botón <span className="bg-white border px-2 py-0.5 rounded text-[10px] font-bold mx-1">👁️ Abrir en Visor</span> en cualquier archivo del historial para inspeccionar el documento aquí.</p>
             </div>
           )}
         </div>

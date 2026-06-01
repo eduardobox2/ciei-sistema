@@ -30,9 +30,20 @@ export default function Login() {
         password: password,
       });
 
+      const usuarioLogueado = response.data.usuario; // Extraemos los datos del usuario
+
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
-      navigate('/dashboard');
+      localStorage.setItem('usuario', JSON.stringify(usuarioLogueado));
+
+      // EL SEMÁFORO INTELIGENTE: ¿A dónde lo enviamos según su rol?
+      if (usuarioLogueado.rol === 'investigador') {
+        navigate('/dashboard'); // Investigadores van a su panel
+      } else if (usuarioLogueado.rol === 'revisor') {
+        navigate('/revisor'); // Revisores van a su NUEVO panel oscuro KODIAK
+      } else {
+        navigate('/comite'); // Administradores, Presidentes y Secretarios van a la Sala de Control
+      }
+
     } catch (err) {
       setError('Las credenciales ingresadas son incorrectas. Por favor, verifique su correo institucional y contraseña.');
     }

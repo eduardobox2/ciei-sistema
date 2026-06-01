@@ -10,6 +10,7 @@ import LandingPage from './pages/LandingPage';
 import Registro from './pages/Registro';
 import PerfilUsuario from './pages/PerfilUsuario'; // 1. Importas esto
 import Perfil from './pages/Perfil';
+import DashboardRevisor from './pages/DashboardRevisor';
 function App() {
   return (
     <BrowserRouter>
@@ -18,6 +19,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
         <Route path="/admin/perfil" element={<PerfilUsuario />} />
+        <Route path="/revisor" element={<DashboardRevisor />} />
+        <Route path="/comite" element={<PanelComite />} />
 <Route path="/perfil" element={<Perfil />} />
         
         {/* ZONA PROTEGIDA: Solo para Investigadores */}
