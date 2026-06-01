@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 interface ModalProps {
   isOpen: boolean;
@@ -8,106 +11,148 @@ interface ModalProps {
 }
 
 export default function NuevoExpedienteModal({ isOpen, onClose, onSuccess }: ModalProps) {
-  const [titulo, setTitulo] = useState('');
-  const [tipo, setTipo] = useState('humanos');
+  const navigate = useNavigate();
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState('');
+  
+  // Todos los campos exigidos en el Requisito 6
+  const [formData, setFormData] = useState({
+    titulo_proyecto: '',
+    tipo_investigacion: 'humanos',
+    facultad: '',
+    escuela_profesional: '',
+    resumen: '',
+    objetivos: '',
+    metodologia: '',
+    investigadores_asociados: '',
+    duracion: ''
+  });
 
-  // Si el modal está cerrado, no renderizamos nada
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const manejarEnvio = async (e: React.FormEvent) => {
     e.preventDefault();
     setCargando(true);
-    setError('');
-
+    
     try {
       const token = localStorage.getItem('token');
+      const respuesta = await axios.post(`${API_URL}/api/solicitudes`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      // Hacemos el POST directo a nuestra ruta del backend
-      await axios.post(
-        'http://localhost:3000/api/solicitudes',
-        { tipo_investigacion: tipo, titulo_proyecto: titulo },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Si sale bien, limpiamos el formulario, avisamos al Dashboard y cerramos
-      setTitulo('');
-      setTipo('humanos');
-      onSuccess();
-      onClose();
-    } catch (err) {
-      setError('Ocurrió un error al crear el expediente. Intente nuevamente.');
+      onSuccess(); 
+      onClose(); 
+      navigate(`/expediente/${respuesta.data.solicitudId}`);
+      
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Error al crear el expediente.');
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    // Fondo oscuro semi-transparente
-    <div className="fixed inset-0 bg-blue-950/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-      {/* Caja del Modal */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Cabecera del Modal */}
-        <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-gray-800">Iniciar Nuevo Expediente</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+        {/* Cabecera Fija */}
+        <div className="bg-blue-950 p-6 flex justify-between items-center shrink-0 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
+          <h3 className="text-xl font-black text-white relative z-10 flex items-center gap-3">
+            <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Crear Nuevo Expediente
+          </h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white transition-colors relative z-10">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-
-        {/* Cuerpo del Formulario */}
-        <form onSubmit={handleSubmit} className="p-6">
-          {error && <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
-          
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Título del Proyecto de Investigación</label>
-              <textarea
-                required
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-600 outline-none transition-all resize-none text-sm"
-                placeholder="Ej. Análisis de datos en la región..."
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-              />
+        
+        {/* Cuerpo con Scroll para los campos largos */}
+        <div className="p-8 overflow-y-auto bg-slate-50 custom-scrollbar">
+          <form id="expedienteForm" onSubmit={manejarEnvio} className="space-y-6">
+            
+            <div className="bg-blue-100 border border-blue-200 rounded-xl p-4 flex gap-3 text-sm text-blue-800 shadow-sm">
+              <svg className="w-5 h-5 shrink-0 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p className="font-bold">Complete la información del protocolo. Los archivos adjuntos se subirán en el siguiente paso.</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo de Investigación</label>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-600 outline-none transition-all text-sm appearance-none"
-              >
-                <option value="humanos">Estudio con Seres Humanos</option>
-                <option value="animales">Estudio con Animales</option>
-                
-                {/* ¡AQUÍ ESTÁ LA MAGIA! Cambiamos "datos" por "datos_secundarios" */}
-                <option value="datos_secundarios">Análisis de Datos Secundarios</option>
-              </select>
-            </div>
-          </div>
+            {/* SECCIÓN 1: Datos Generales */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+              <h4 className="font-black text-slate-800 border-b border-slate-100 pb-2">1. Datos Generales</h4>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Título del Proyecto</label>
+                <textarea required rows={2} value={formData.titulo_proyecto} onChange={(e) => setFormData({...formData, titulo_proyecto: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-bold text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-slate-50" placeholder="Ej: Impacto de la inteligencia artificial..." />
+              </div>
 
-          {/* Botones de acción */}
-          <div className="mt-8 flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={cargando}
-              className="px-5 py-2.5 text-sm font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-lg shadow-md transition-colors disabled:opacity-70 flex items-center gap-2"
-            >
-              {cargando ? 'Guardando...' : 'Crear Expediente'}
-            </button>
-          </div>
-        </form>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Facultad</label>
+                  <input required type="text" value={formData.facultad} onChange={(e) => setFormData({...formData, facultad: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-bold text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" placeholder="Ej: Ingeniería Estadística" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Escuela Profesional</label>
+                  <input required type="text" value={formData.escuela_profesional} onChange={(e) => setFormData({...formData, escuela_profesional: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-bold text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" placeholder="Ej: Estadística e Informática" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tipo de Investigación</label>
+                  <select value={formData.tipo_investigacion} onChange={(e) => setFormData({...formData, tipo_investigacion: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-black text-blue-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50/50 cursor-pointer">
+                    <option value="humanos">Investigación en Humanos</option>
+                    <option value="animales">Investigación en Animales</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Duración Proyectada</label>
+                  <input type="text" value={formData.duracion} onChange={(e) => setFormData({...formData, duracion: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-bold text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" placeholder="Ej: 6 meses" />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Investigadores Asociados (Opcional)</label>
+                <input type="text" value={formData.investigadores_asociados} onChange={(e) => setFormData({...formData, investigadores_asociados: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-medium text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" placeholder="Nombres separados por comas" />
+              </div>
+            </div>
+
+            {/* SECCIÓN 2: Resumen Científico */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+              <h4 className="font-black text-slate-800 border-b border-slate-100 pb-2">2. Resumen Científico</h4>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Resumen del Proyecto</label>
+                <textarea required rows={3} value={formData.resumen} onChange={(e) => setFormData({...formData, resumen: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-medium text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-slate-50" placeholder="Breve descripción del estudio..." />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Objetivos (General y Específicos)</label>
+                <textarea required rows={3} value={formData.objetivos} onChange={(e) => setFormData({...formData, objetivos: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-medium text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-slate-50" placeholder="1. Objetivo General&#10;2. Objetivos Específicos..." />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Metodología a emplear</label>
+                <textarea required rows={3} value={formData.metodologia} onChange={(e) => setFormData({...formData, metodologia: e.target.value})} className="w-full px-4 py-3 border border-slate-200 font-medium text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-slate-50" placeholder="Diseño de estudio, muestra, instrumentos..." />
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+        {/* Pie Fijo: Botones de Acción */}
+        <div className="bg-white border-t border-slate-200 p-6 shrink-0 flex justify-end gap-4 rounded-b-3xl">
+          <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+            Cancelar
+          </button>
+          <button 
+            type="submit" 
+            form="expedienteForm"
+            disabled={cargando}
+            className={`px-8 py-3 rounded-xl font-black text-white shadow-md transition-all flex items-center gap-2 ${
+              cargando ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-700 hover:bg-blue-800 hover:-translate-y-0.5 shadow-blue-700/30'
+            }`}
+          >
+            {cargando ? 'Creando Borrador...' : 'Guardar y Subir Archivos'}
+            {!cargando && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>}
+          </button>
+        </div>
 
       </div>
     </div>

@@ -6,36 +6,55 @@ import fs from 'fs';
 
 export const subirDocumento = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { solicitud_id, tipo_anexo } = req.body;
-        const investigador_id = req.usuario.id;
-        const file = (req as any).file;
+        const { solicitudId } = req.body;
+        const archivo = (req as any).file;
 
-        if (!file) {
-            res.status(400).json({ error: 'No se ha detectado ningún archivo adjunto.' });
+        if (!archivo || !solicitudId) {
+            res.status(400).json({ error: 'Faltan datos para subir el documento.' });
             return;
         }
 
-        // Insertar los metadatos del archivo en la base de datos
-        const result = await pool.query(
-            `INSERT INTO documentos (solicitud_id, tipo_anexo, nombre_archivo_original, ruta_archivo, subido_por)
-             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [solicitud_id, tipo_anexo, file.originalname, file.path, investigador_id]
-        );
+        // Usamos los nombres exactos que me diste:
+        // solicitud_id, nombre_archivo_original, ruta_archivo, tipo_anexo, subido_por, fecha_subida
+        const query = `
+            INSERT INTO documentos (
+                solicitud_id, 
+                nombre_archivo_original, 
+                ruta_archivo, 
+                tipo_anexo, 
+                subido_por, 
+                fecha_subida
+            ) 
+            VALUES ($1, $2, $3, $4, $5, NOW()) 
+            RETURNING *
+        `;
+
+        const values = [
+            solicitudId,
+            archivo.originalname,
+            archivo.path,
+            'Documento Principal', // Valor estándar como texto
+            req.usuario.id,
+            
+        ];
+
+        const result = await pool.query(query, values);
 
         res.status(201).json({
-            mensaje: 'Documento subido y registrado exitosamente',
+            mensaje: 'Documento subido correctamente',
             documento: result.rows[0]
         });
 
     } catch (error) {
         console.error('Error al subir documento:', error);
-        res.status(500).json({ error: 'Falla interna al procesar el anexo.' });
+        res.status(500).json({ error: 'Falla interna al registrar el documento en la base de datos.' });
     }
 };
-// Obtener todos los documentos de una solicitud específica
+
+// Obtener todos los documentos de una solicitud específica (Mantenemos tu código intacto)
 export const obtenerDocumentosPorSolicitud = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { id } = req.params; // Sacamos el ID de la solicitud de la URL
+        const { id } = req.params;
 
         const result = await pool.query(
             `SELECT id, tipo_anexo, nombre_archivo_original, fecha_subida 
@@ -55,12 +74,12 @@ export const obtenerDocumentosPorSolicitud = async (req: AuthRequest, res: Respo
         res.status(500).json({ error: 'Falla interna al buscar los anexos.' });
     }
 };
-// CU-09: Descargar el archivo físico de un documento
+
+// CU-09: Descargar el archivo físico de un documento (Mantenemos tu código intacto)
 export const descargarDocumento = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
 
-        // 1. Buscamos la ruta del archivo en PostgreSQL
         const result = await pool.query(
             'SELECT ruta_archivo, nombre_archivo_original FROM documentos WHERE id = $1',
             [id]
@@ -72,8 +91,6 @@ export const descargarDocumento = async (req: AuthRequest, res: Response): Promi
         }
 
         const documento = result.rows[0];
-        
-        // 2. Buscamos el archivo físico en el disco duro
         const rutaAbsoluta = path.resolve(documento.ruta_archivo);
 
         if (!fs.existsSync(rutaAbsoluta)) {
@@ -81,7 +98,6 @@ export const descargarDocumento = async (req: AuthRequest, res: Response): Promi
             return;
         }
 
-        // 3. Se lo enviamos al navegador forzando la descarga con su nombre original
         res.download(rutaAbsoluta, documento.nombre_archivo_original);
 
     } catch (error) {

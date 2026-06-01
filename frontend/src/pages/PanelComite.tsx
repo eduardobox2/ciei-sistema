@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AsignarRevisorModal from '../components/AsignarRevisorModal';
 
+// MAGIA: El sistema detectará automáticamente la URL según dónde esté publicado
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface SolicitudComite {
   id: number;
   numero_expediente: string;
@@ -49,7 +52,7 @@ export default function PanelComite() {
   const cargarBandeja = async () => {
     try {
       const token = localStorage.getItem('token');
-      const respuesta = await axios.get('http://localhost:3000/api/solicitudes/comite/todas', {
+      const respuesta = await axios.get(`${API_URL}/api/solicitudes/comite/todas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSolicitudes(respuesta.data.solicitudes);
@@ -58,11 +61,27 @@ export default function PanelComite() {
     }
   };
 
+  // NUEVA FUNCIÓN: Exigir Pago al Investigador
+  const exigirPago = async (id: number) => {
+    if (window.confirm('¿Solicitar pago de derechos? El investigador no podrá avanzar hasta que suba su voucher.')) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.put(`${API_URL}/api/solicitudes/${id}/exigir-pago`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        alert('¡Proyecto retenido! Se ha habilitado la subida de voucher para el investigador.');
+        cargarBandeja();
+      } catch (error) {
+        alert('Error al exigir el pago. Verifique las rutas del backend.');
+      }
+    }
+  };
+
   const aprobarExpediente = async (id: number) => {
     if (window.confirm('¿Confirma que desea APROBAR este expediente de forma definitiva?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.put(`http://localhost:3000/api/solicitudes/${id}/aprobar`, {}, {
+        await axios.put(`${API_URL}/api/solicitudes/${id}/aprobar`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert('¡Proyecto Aprobado Exitosamente!');
@@ -76,7 +95,7 @@ export default function PanelComite() {
   const descargarConstanciaPDF = async (id: number, numero_expediente: string) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://localhost:3000/api/solicitudes/${id}/resolucion`, {
+      const res = await axios.get(`${API_URL}/api/solicitudes/${id}/resolucion`, {
         headers: { Authorization: `Bearer ${token}` }, responseType: 'blob'
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -88,12 +107,11 @@ export default function PanelComite() {
     }
   };
 
-  // NUEVO: La función que faltaba para asignar revisores
   const abrirModalAsignacion = (id: number) => {
     setSolicitudActiva(id);
     setModalAbierto(true);
   };
-  // Filtrado reactivo de Expedientes
+
   const expedientesFiltrados = solicitudes.filter(sol => 
     sol.numero_expediente.toLowerCase().includes(busquedaExpediente.toLowerCase()) ||
     sol.nombres.toLowerCase().includes(busquedaExpediente.toLowerCase()) ||
@@ -108,7 +126,7 @@ export default function PanelComite() {
   const cargarUsuarios = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3000/api/usuarios', {
+      const response = await axios.get(`${API_URL}/api/usuarios`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setListaUsuarios(response.data.usuarios);
@@ -120,7 +138,7 @@ export default function PanelComite() {
   const actualizarRolUsuario = async (id: number, nuevoRol: string) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:3000/api/usuarios/${id}/rol`, { rol: nuevoRol }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(`${API_URL}/api/usuarios/${id}/rol`, { rol: nuevoRol }, { headers: { Authorization: `Bearer ${token}` } });
       setListaUsuarios(listaUsuarios.map(u => u.id === id ? { ...u, rol: nuevoRol } : u));
       alert('¡Rol de usuario actualizado!');
     } catch (error) {
@@ -128,7 +146,6 @@ export default function PanelComite() {
     }
   };
 
-  // Filtrado reactivo de Usuarios
   const usuariosFiltrados = listaUsuarios.filter(user => 
     user.nombres.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
     user.apellidos.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
@@ -141,7 +158,7 @@ export default function PanelComite() {
   
   const cargarDatosPortal = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/portal/contenido');
+      const response = await axios.get(`${API_URL}/api/portal/contenido`);
       if (response.data.videoUrl) setNuevoVideoUrl(response.data.videoUrl);
       if (response.data.avisos) setListaAvisos(response.data.avisos);
     } catch (error) {
@@ -149,11 +166,89 @@ export default function PanelComite() {
     }
   };
 
+  const [formatosMetadatos, setFormatosMetadatos] = useState<any[]>([]);
+
+  const cargarMetadatosFormatos = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_URL}/api/portal/formatos/metadatos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFormatosMetadatos(res.data);
+    } catch (e) {
+      console.log('Error al cargar metadatos de formatos');
+    }
+  };
+
+  const crearNuevoFormato = async () => {
+    const titulo = window.prompt('Ingrese el título del nuevo formato (Ej: Formato 04: Declaración Jurada):');
+    if (!titulo) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/api/portal/formatos`, { titulo }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      cargarMetadatosFormatos();
+    } catch (error) {
+      alert('Error al crear el formato.');
+    }
+  };
+
+  const editarTituloFormato = async (id: number, tituloActual: string) => {
+    const nuevoTitulo = window.prompt('Edite el título del formato:', tituloActual);
+    if (!nuevoTitulo || nuevoTitulo === tituloActual) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_URL}/api/portal/formatos/${id}/titulo`, { titulo: nuevoTitulo }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      cargarMetadatosFormatos();
+    } catch (error) {
+      alert('Error al editar el título.');
+    }
+  };
+
+  const eliminarFormato = async (id: number) => {
+    if (window.confirm('¿Está seguro de eliminar este formato? Desaparecerá inmediatamente de la Landing Page.')) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`${API_URL}/api/portal/formatos/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        cargarMetadatosFormatos();
+      } catch (error) {
+        alert('Error al eliminar el formato.');
+      }
+    }
+  };
+
+  const manejarSubidaFormatoOficial = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('formato', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_URL}/api/portal/formatos/subir/${id}`, formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      alert('¡Archivo adjuntado y actualizado con éxito!');
+      cargarMetadatosFormatos();
+    } catch (error) {
+      alert('Error al subir el archivo del formato.');
+    }
+  };
+
   const actualizarVideoPortada = async () => {
     if (!nuevoVideoUrl) return alert('Por favor ingrese un enlace válido');
     try {
       const token = localStorage.getItem('token'); 
-      await axios.put('http://localhost:3000/api/portal/video', { videoUrl: nuevoVideoUrl }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(`${API_URL}/api/portal/video`, { videoUrl: nuevoVideoUrl }, { headers: { Authorization: `Bearer ${token}` } });
       alert('¡Video de la portada actualizado con éxito!');
     } catch (error) { alert('Error al actualizar el video.'); }
   };
@@ -188,14 +283,12 @@ export default function PanelComite() {
       const fechaHoy = new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
       
       if (avisoEnEdicion) {
-        // ACTUALIZAR AVISO EXISTENTE
-        await axios.put(`http://localhost:3000/api/portal/avisos/${avisoEnEdicion}`, 
+        await axios.put(`${API_URL}/api/portal/avisos/${avisoEnEdicion}`, 
           { ...nuevoAviso, fecha: fechaHoy }, { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('¡Aviso actualizado exitosamente!');
       } else {
-        // CREAR NUEVO AVISO
-        await axios.post('http://localhost:3000/api/portal/avisos', 
+        await axios.post(`${API_URL}/api/portal/avisos`, 
           { ...nuevoAviso, fecha: fechaHoy }, { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('¡Aviso publicado exitosamente!');
@@ -203,7 +296,7 @@ export default function PanelComite() {
       setModalAvisoAbierto(false); 
       cargarDatosPortal();
     } catch (error) {
-      alert('Error al guardar el aviso. Verifica que el backend tenga la ruta PUT habilitada.');
+      alert('Error al guardar el aviso.');
     }
   };
 
@@ -211,7 +304,7 @@ export default function PanelComite() {
     if (window.confirm('¿Estás seguro de eliminar este aviso?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:3000/api/portal/avisos/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.delete(`${API_URL}/api/portal/avisos/${id}`, { headers: { Authorization: `Bearer ${token}` } });
         cargarDatosPortal();
       } catch (error) { alert('Error al eliminar el aviso.'); }
     }
@@ -233,6 +326,7 @@ export default function PanelComite() {
 
   useEffect(() => {
     if (pestañaActiva === 'usuarios') cargarUsuarios();
+    if (pestañaActiva === 'portal') cargarMetadatosFormatos();
   }, [pestañaActiva]);
 
   const cerrarSesion = () => {
@@ -278,7 +372,7 @@ export default function PanelComite() {
             {/* Menú Desplegable */}
             {menuPerfilAbierto && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-fade-in overflow-hidden">
-                <button className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-red-600 transition-colors flex items-center gap-2">
+                <button onClick={() => navigate('/perfil')} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-red-600 transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                   Editar Perfil
                 </button>
@@ -366,23 +460,47 @@ export default function PanelComite() {
                       <tr key={sol.id} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="px-6 py-5 text-sm font-black text-slate-900">{sol.numero_expediente}</td>
                         <td className="px-6 py-5 text-sm font-medium text-slate-600">{sol.nombres} {sol.apellidos}</td>
+                        
+                        {/* ESTADOS DEL PROYECTO (Con Amarillo) */}
                         <td className="px-6 py-5 text-center">
                           <span className={`px-3 py-1.5 inline-flex text-[11px] font-black uppercase tracking-wider rounded-lg border ${
                             sol.estado_actual === 'aprobado' ? 'bg-green-50 text-green-700 border-green-200' :
                             sol.estado_actual === 'observado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            sol.estado_actual === 'enviado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-200'
+                            sol.estado_actual === 'pendiente_pago' ? 'bg-yellow-100 text-yellow-800 border-yellow-400' :
+                            sol.estado_actual === 'enviado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                            'bg-slate-100 text-slate-700 border-slate-200'
                           }`}>
                             {sol.estado_actual.replace('_', ' ')}
                           </span>
                         </td>
+                        
+                        {/* BOTONES (Con Peaje) */}
                         <td className="px-6 py-5 text-right text-sm space-x-2">
-                          {usuario?.rol === 'presidente' && sol.estado_actual === 'enviado' && (
-                            <button onClick={() => abrirModalAsignacion(sol.id)} className="bg-amber-400 hover:bg-amber-500 text-slate-900 px-4 py-2 rounded-xl font-bold text-xs">Asignar Revisor</button>
+                          
+                          {/* Botones Peaje y Asignación (Solo Presidente/Admin) */}
+                          {(usuario?.rol === 'presidente' || usuario?.rol === 'admin') && sol.estado_actual === 'enviado' && (
+                            <>
+                              <button onClick={() => exigirPago(sol.id)} className="bg-yellow-400 hover:bg-yellow-500 text-yellow-950 px-3 py-2 rounded-xl font-bold text-xs shadow-sm" title="Detener y cobrar derechos">
+                                Exigir Pago
+                              </button>
+                              <button onClick={() => abrirModalAsignacion(sol.id)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-sm">
+                                Asignar Revisor
+                              </button>
+                            </>
                           )}
+
+                          {/* Aviso de Espera de Pago */}
+                          {(usuario?.rol === 'presidente' || usuario?.rol === 'admin') && sol.estado_actual === 'pendiente_pago' && (
+                            <span className="text-xs font-bold text-yellow-600 italic bg-yellow-50 px-3 py-2 rounded-xl">
+                              ⏳ Esperando Voucher del Investigador...
+                            </span>
+                          )}
+
+                          {/* Demás botones del sistema */}
                           {(usuario?.rol === 'presidente' || usuario?.rol === 'admin') && (sol.estado_actual === 'en_revision' || sol.estado_actual === 'subsanado') && (
                             <button onClick={() => aprobarExpediente(sol.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-xs">Aprobar</button>
                           )}
-                          {(usuario?.rol === 'revisor' || usuario?.rol === 'admin') && sol.estado_actual !== 'aprobado' && (
+                          {(usuario?.rol === 'revisor' || usuario?.rol === 'admin') && sol.estado_actual !== 'aprobado' && sol.estado_actual !== 'pendiente_pago' && (
                             <button onClick={() => navigate(`/comite/evaluar/${sol.id}`)} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-bold text-xs">Evaluar</button>
                           )}
                           {sol.estado_actual === 'aprobado' && (
@@ -473,7 +591,58 @@ export default function PanelComite() {
             VISTA 3: PORTAL (CMS con Edición)
             ========================================= */}
         {pestañaActiva === 'portal' && (
+          
           <div className="animate-fade-in space-y-8">
+            {/* NUEVA SECCIÓN: GESTIÓN DE FORMATOS OFICIALES DINÁMICOS */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0_5px_20px_rgb(0,0,0,0.03)]">
+              <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">Plantillas y Formatos Oficiales</h3>
+                  <p className="text-slate-400 text-xs font-medium mt-1">Gestione los documentos que los tesistas descargarán en la Landing Page.</p>
+                </div>
+                <button onClick={crearNuevoFormato} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+                  Nuevo Formato
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {formatosMetadatos.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-slate-500 text-sm font-medium">No hay formatos creados. Haga clic en "Nuevo Formato" para empezar.</div>
+                ) : (
+                  formatosMetadatos.map((formato) => (
+                    <div key={formato.id} className="border border-slate-200 p-5 rounded-2xl bg-slate-50/50 flex flex-col justify-between group">
+                      <div>
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-black text-sm text-slate-800 uppercase tracking-tight pr-4">{formato.titulo}</h4>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => editarTituloFormato(formato.id, formato.titulo)} className="text-blue-500 hover:text-blue-700 bg-blue-100 p-1.5 rounded-md" title="Editar título">✎</button>
+                            <button onClick={() => eliminarFormato(formato.id)} className="text-red-500 hover:text-red-700 bg-red-100 p-1.5 rounded-md" title="Eliminar formato">✕</button>
+                          </div>
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 truncate">
+                          <span className="font-bold text-slate-700">Archivo: </span> 
+                          {formato.nombre_archivo_original ? formato.nombre_archivo_original : <span className="text-red-500 font-bold">Sin archivo subido</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <label className="w-full bg-slate-900 hover:bg-slate-800 text-yellow-400 text-xs font-extrabold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                          {formato.nombre_archivo_original ? 'Reemplazar Archivo' : 'Subir Archivo'}
+                          <input 
+                            type="file" 
+                            accept=".pdf,.doc,.docx"
+                            onChange={(e) => manejarSubidaFormatoOficial(formato.id, e)} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0_5px_20px_rgb(0,0,0,0.03)]">
               <h3 className="text-xl font-black text-slate-800 mb-6">Video de la Portada</h3>
               <div className="flex gap-4">

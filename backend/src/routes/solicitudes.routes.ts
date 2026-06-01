@@ -8,19 +8,24 @@ import {
     asignarRevisor,
     subsanarSolicitud,
     descargarResolucion,
-    aprobarSolicitud // <-- ¡Aquí está la función que faltaba importar!
-    
+    aprobarSolicitud,
+    obtenerSolicitudPorId,
+    cambiarEstadoAPendientePago
+
 } from '../controllers/solicitudes.controller';
 import { verificarToken } from '../middlewares/authMiddleware';
 import { pool } from '../db'; 
 
 const router = Router();
 
-// Rutas del Presidente y Comité
+// ==========================================
+// RUTAS DEL PRESIDENTE Y COMITÉ
+// ==========================================
 router.get('/comite/todas', verificarToken, obtenerSolicitudesComite);
 router.put('/:id/dictamen', verificarToken, dictaminarSolicitud);
 router.put('/:id/asignar', verificarToken, asignarRevisor); 
 router.put('/:id/aprobar', verificarToken, aprobarSolicitud);
+router.put('/:id/exigir-pago', verificarToken, cambiarEstadoAPendientePago);
 
 // Ruta rápida para obtener la lista de usuarios con rol "revisor"
 router.get('/revisores/lista', verificarToken, async (req, res) => {
@@ -32,11 +37,18 @@ router.get('/revisores/lista', verificarToken, async (req, res) => {
     }
 });
 
-// Rutas del Investigador
+// ==========================================
+// RUTAS DEL INVESTIGADOR
+// ==========================================
 router.get('/', verificarToken, obtenerMisSolicitudes);
-router.put('/:id/subsanar', verificarToken, subsanarSolicitud); // <-- Ya no saldrá en rojo
 router.post('/', verificarToken, crearSolicitudBorrador);
-router.put('/:id/enviar', verificarToken, enviarSolicitud);
+
+// --- Rutas Dinámicas (Con :id) ---
 router.get('/:id/resolucion', verificarToken, descargarResolucion);
+router.put('/:id/subsanar', verificarToken, subsanarSolicitud); 
+router.put('/:id/enviar', verificarToken, enviarSolicitud);
+
+// ¡AQUÍ ESTÁ LA MAGIA QUE FALTABA! (La ponemos al final por seguridad)
+router.get('/:id', verificarToken, obtenerSolicitudPorId);
 
 export default router;

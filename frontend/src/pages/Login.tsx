@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
-// Íconos SVG simples para mejorar la experiencia visual
 const MailIcon = () => (
-  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 text-slate-400 group-focus-within:text-[#E60000] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" />
   </svg>
 );
 
 const LockIcon = () => (
-  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 text-slate-400 group-focus-within:text-[#E60000] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
   </svg>
 );
@@ -26,7 +25,6 @@ export default function Login() {
     setError('');
 
     try {
-      // Importante: La lógica de conexión sigue siendo la misma, no se rompe nada
       const response = await axios.post('http://localhost:3000/api/auth/login', {
         correo_institucional: correo,
         password: password,
@@ -36,65 +34,91 @@ export default function Login() {
       localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
       navigate('/dashboard');
     } catch (err) {
-      // Manejo de error más visual y claro
       setError('Las credenciales ingresadas son incorrectas. Por favor, verifique su correo institucional y contraseña.');
     }
   };
 
   return (
-    // Contenedor principal con diseño dividido y fondo suave
-    <div className="min-h-screen bg-gray-50 flex font-sans">
+    <div className="min-h-screen bg-white flex font-sans">
       
-      {/* SECCIÓN IZQUIERDA: Branding e Imagen (Oculta en móviles) */}
-      <div className="hidden lg:flex w-1/2 bg-blue-950 p-12 flex-col justify-between text-white relative overflow-hidden">
-        {/* Un sutil patrón de fondo académico (abstracto) */}
-        <div className="absolute inset-0 opacity-10">
-          <svg width="100%" height="100%"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#fff"/></pattern></defs><rect width="100%" height="100%" fill="url(#dots)"/></svg>
+      {/* SECCIÓN IZQUIERDA: Estética Institucional KODIAK */}
+      <div className="hidden lg:flex w-1/2 bg-[#0B132B] p-12 flex-col justify-center relative overflow-hidden">
+        
+        {/* Fondo simulando la red de nodos */}
+        <div className="absolute inset-0 opacity-20 pointer-events-none" 
+             style={{ 
+               backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.4) 1px, transparent 0)', 
+               backgroundSize: '40px 40px' 
+             }}>
         </div>
         
-        {/* Logo de UNAP (Placeholder) */}
-        <div className="flex items-center gap-3 z-10">
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center font-bold text-xl text-yellow-400">U</div>
-          <span className="text-xl font-bold tracking-tight">UNAP <span className="font-light text-white/70">| CIEI</span></span>
+        {/* Líneas decorativas estilo red (decoración CSS) */}
+        <div className="absolute inset-0 opacity-10">
+            <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="20%" x2="100%" y2="80%" stroke="white" strokeWidth="1"/>
+                <line x1="100%" y1="20%" x2="0" y2="80%" stroke="white" strokeWidth="1"/>
+                <line x1="50%" y1="0" x2="50%" y2="100%" stroke="white" strokeWidth="1"/>
+            </svg>
         </div>
 
-        {/* Mensaje principal */}
-        <div className="z-10 max-w-lg mb-20">
-          <span className="inline-block bg-yellow-400 text-blue-950 px-3 py-1 rounded-full text-xs font-bold mb-4">PLATAFORMA OFICIAL</span>
-          <h1 className="text-5xl font-extrabold leading-tight tracking-tighter">Comité de Ética en la Investigación</h1>
-          <p className="mt-6 text-xl text-blue-100 font-light">Garantizando la integridad, responsabilidad y excelencia en cada proyecto científico de la Universidad Nacional del Altiplano.</p>
-        </div>
+        <div className="z-10 max-w-xl mx-auto w-full">
+          {/* Badge: Plataforma Activa */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-700 bg-slate-800/60 backdrop-blur-sm mb-8 shadow-lg">
+            <div className="w-2 h-2 rounded-full bg-[#FFD700] animate-pulse shadow-[0_0_8px_#FFD700]"></div>
+            <span className="text-[11px] font-black tracking-widest text-[#FFD700] uppercase">Plataforma Activa</span>
+          </div>
 
-        {/* Footer de la sección */}
-        <div className="z-10 text-sm text-white/50">
-          Desarrollado con excelencia por KODIAK © 2026
+          {/* Título Principal */}
+          <h1 className="text-[3.5rem] font-black text-white leading-[1.1] tracking-tight mb-8">
+            Comité de Ética en <br/>
+            <span className="text-[#FFD700]">Investigación</span> <br/>
+            Científica
+          </h1>
+
+          {/* Tarjeta translúcida de información */}
+          <div className="bg-[#121E3A]/80 border border-slate-700/50 backdrop-blur-md p-6 rounded-2xl shadow-2xl">
+            <p className="text-lg text-slate-300 font-medium leading-relaxed">
+              Sistematizamos y agilizamos la evaluación de protocolos de investigación para proteger la vida, los derechos y la dignidad en estudios con humanos y animales.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* SECCIÓN DERECHA: Formulario de Login */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 md:p-16 bg-white">
-        <div className="w-full max-w-md">
+      <div className="w-full lg:w-1/2 flex flex-col p-8 sm:p-12 md:p-16 bg-white relative overflow-y-auto">
+        
+        {/* LOGO CLIKEABLE (Lleva a la página principal) */}
+        <div className="w-full max-w-md mx-auto mb-10">
+          <Link to="/" className="inline-block transition-transform hover:scale-105 active:scale-95">
+            <img 
+              src="/logo.png" 
+              alt="Comité Institucional de Ética CIEI" 
+              className="h-12 md:h-16 object-contain"
+            />
+          </Link>
+        </div>
+
+        <div className="w-full max-w-md mx-auto flex-1 flex flex-col justify-center">
           
-          {/* Encabezado del Formulario */}
-          <div className="mb-12">
-            <h2 className="text-4xl font-extrabold text-gray-900 tracking-tighter">Bienvenido</h2>
-            <p className="text-lg text-gray-500 mt-3 font-light">Inicie sesión con sus credenciales institucionales para acceder a la gestión de expedientes.</p>
+          <div className="mb-10">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Iniciar Sesión</h2>
+            <p className="text-sm text-slate-500 mt-2 font-medium">Ingrese sus credenciales para acceder a la gestión de sus expedientes.</p>
           </div>
 
-          {/* Alerta de Error estilizada */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl mb-8 flex gap-3 items-center text-sm shadow-inner">
-              <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-              {error}
+            <div className="bg-red-50 border-l-4 border-[#E60000] text-red-800 p-4 rounded-r-xl mb-8 flex gap-3 items-start text-sm shadow-sm">
+              <svg className="w-5 h-5 text-[#E60000] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              <span className="font-medium">{error}</span>
             </div>
           )}
 
-          {/* Formulario */}
-          <form onSubmit={handleLogin} className="space-y-7">
+          <form onSubmit={handleLogin} className="space-y-6">
             
             {/* Campo: Correo */}
             <div className="relative group">
-              <label className="text-xs font-bold text-gray-500 tracking-wide uppercase mb-1.5 block">Correo Institucional</label>
+              <label className="text-[11px] font-black text-slate-500 tracking-wider uppercase mb-1.5 block group-focus-within:text-[#E60000] transition-colors">
+                Correo Electrónico
+              </label>
               <div className="relative flex items-center">
                 <div className="absolute left-4 z-10">
                   <MailIcon />
@@ -102,7 +126,7 @@ export default function Login() {
                 <input
                   type="email"
                   required
-                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-600 outline-none transition-all duration-150 font-medium placeholder:font-normal placeholder:text-gray-300"
+                  className="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-xl text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-[#E60000] outline-none transition-all duration-200 font-bold placeholder:font-medium placeholder:text-slate-400"
                   placeholder="ejemplo@unap.edu.pe"
                   value={correo}
                   onChange={(e) => setCorreo(e.target.value)}
@@ -112,7 +136,14 @@ export default function Login() {
 
             {/* Campo: Contraseña */}
             <div className="relative group">
-              <label className="text-xs font-bold text-gray-500 tracking-wide uppercase mb-1.5 block">Contraseña</label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-[11px] font-black text-slate-500 tracking-wider uppercase group-focus-within:text-[#E60000] transition-colors">
+                  Contraseña
+                </label>
+                <a href="#" className="text-[11px] font-bold text-slate-500 hover:text-[#E60000] transition-colors underline decoration-slate-300 hover:decoration-[#E60000]">
+                  ¿Olvidó su clave?
+                </a>
+              </div>
               <div className="relative flex items-center">
                 <div className="absolute left-4 z-10">
                   <LockIcon />
@@ -120,7 +151,7 @@ export default function Login() {
                 <input
                   type="password"
                   required
-                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-600 outline-none transition-all duration-150 font-medium placeholder:font-normal placeholder:text-gray-300"
+                  className="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-xl text-slate-900 bg-slate-50 focus:bg-white focus:ring-0 focus:border-[#E60000] outline-none transition-all duration-200 font-bold placeholder:font-medium placeholder:text-slate-400"
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -128,20 +159,22 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Link opcional de recuperar contraseña (estilo) */}
-            <div className="text-right">
-              <a href="#" className="text-sm font-semibold text-blue-700 hover:text-blue-800 transition-colors">¿Olvidó su contraseña?</a>
-            </div>
-
-            {/* Botón de envío potente */}
-            <div className="pt-2">
+            {/* BOTONES */}
+            <div className="pt-4 space-y-3">
               <button
                 type="submit"
-                className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 px-6 rounded-xl transition-all duration-150 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 flex items-center justify-center gap-3 transform hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full bg-[#E60000] hover:bg-red-700 text-white font-black py-4 px-6 rounded-xl transition-all duration-200 shadow-[0_4px_14px_rgba(230,0,0,0.3)] hover:shadow-[0_6px_20px_rgba(230,0,0,0.4)] flex items-center justify-center gap-2 transform active:scale-[0.98]"
               >
-                <span>Ingresar al Sistema</span>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-              
+                <span>Iniciar Sesión</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/registro')} // Redirige a la pantalla de crear cuenta
+                className="w-full bg-[#1E293B] hover:bg-slate-900 text-white font-black py-4 px-6 rounded-xl transition-all duration-200 shadow-md flex items-center justify-center gap-2 transform active:scale-[0.98]"
+              >
+                Registrarse
               </button>
             </div>
           </form>

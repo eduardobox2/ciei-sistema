@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import * as THREE from 'three';
 import axios from 'axios';
 
+// Variable de entorno dinámica para despliegue
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 // Truco maestro para Vite
 (window as any).THREE = THREE;
 
@@ -17,6 +20,10 @@ export default function LandingPage() {
   // --- ESTADOS DINÁMICOS DEL PORTAL ---
   const [videoUrl, setVideoUrl] = useState("https://vriunap.pe/vriadds/etica/img/videoetica.mp4");
   const [avisos, setAvisos] = useState<any[]>([]);
+  const [formatos, setFormatos] = useState<any[]>([]);
+  
+  // Estado para la ventana de "Ver todos los avisos"
+  const [modalAvisosAbierto, setModalAvisosAbierto] = useState(false);
 
   // Inicializar Vanta.js
   useEffect(() => {
@@ -43,21 +50,35 @@ export default function LandingPage() {
   useEffect(() => {
     const cargarContenidoPortal = async () => {
       try {
-        const response = await axios.get('http://localhost:3000/api/portal/contenido');
+        const response = await axios.get(`${API_URL}/api/portal/contenido`);
         if (response.data.videoUrl) setVideoUrl(response.data.videoUrl);
         if (response.data.avisos) setAvisos(response.data.avisos);
       } catch (error) {
         console.log("No se pudo cargar el portal dinámico.");
       }
     };
+
+    const cargarFormatos = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/portal/formatos/metadatos`);
+        setFormatos(res.data);
+      } catch (error) {
+        console.error("Error cargando formatos");
+      }
+    };
+
     cargarContenidoPortal();
+    cargarFormatos();
   }, []);
+
+  // Solo mostramos los 4 más recientes en la vista principal
+  const avisosRecientes = avisos.slice(0, 4);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex flex-col scroll-smooth selection:bg-red-500 selection:text-white">
       
       {/* NAVEGACIÓN */}
-      <nav className="fixed w-full top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
+      <nav className="fixed w-full top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-20 items-center">
           <div className="flex items-center gap-4 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
             <img src="/logo.png" alt="Logo CIEI" className="h-12 hover:scale-105 transition-transform" />
@@ -146,7 +167,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* SECCIÓN AVISOS DINÁMICA CON IMÁGENES */}
+        {/* SECCIÓN AVISOS DINÁMICA */}
         <section id="avisos" className="py-24 bg-slate-50 relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 relative z-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
@@ -156,9 +177,14 @@ export default function LandingPage() {
                 </span>
                 <h2 className="text-4xl md:text-5xl font-black text-slate-900">Avisos del Comité</h2>
               </div>
-              <button className="text-slate-500 hover:text-red-600 font-bold flex items-center gap-1 transition-colors">
-                Ver todos los avisos <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
-              </button>
+              {avisos.length > 4 && (
+                <button 
+                  onClick={() => setModalAvisosAbierto(true)}
+                  className="text-slate-500 hover:text-red-600 font-bold flex items-center gap-1 transition-colors bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md"
+                >
+                  Ver todos los avisos ({avisos.length}) <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+              )}
             </div>
 
             {avisos.length === 0 ? (
@@ -167,17 +193,12 @@ export default function LandingPage() {
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-8">
-                {avisos.map((aviso) => (
+                {avisosRecientes.map((aviso) => (
                   <div key={aviso.id} className="bg-white p-8 rounded-3xl shadow-[0_10px_30px_rgb(0,0,0,0.04)] border border-slate-200 hover:border-yellow-400 hover:shadow-xl transition-all group flex flex-col">
                     
-                    {/* MAGIA: Si el aviso tiene imagen, la mostramos hermosa */}
                     {aviso.imagen_url && (
                       <div className="w-full h-48 mb-6 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 relative">
-                        <img 
-                          src={aviso.imagen_url} 
-                          alt="Imagen adjunta" 
-                          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                        />
+                        <img src={aviso.imagen_url} alt="Imagen adjunta" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
                       </div>
                     )}
 
@@ -191,15 +212,7 @@ export default function LandingPage() {
                     <h3 className="text-2xl font-extrabold text-slate-800 mb-4 group-hover:text-red-600 transition-colors">
                       {aviso.titulo}
                     </h3>
-                    
-                    {/* Mantenemos el texto largo estilizado */}
-                    <p className="text-slate-600 mb-6 whitespace-pre-wrap flex-1">
-                      {aviso.texto}
-                    </p>
-                    
-                    <button className="text-red-600 font-bold flex items-center gap-2 group-hover:gap-3 transition-all mt-auto">
-                      Leer más <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-                    </button>
+                    <p className="text-slate-600 mb-6 whitespace-pre-wrap flex-1">{aviso.texto}</p>
                   </div>
                 ))}
               </div>
@@ -207,41 +220,54 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* SECCIÓN FORMATOS OFICIALES */}
+        {/* SECCIÓN FORMATOS OFICIALES DINÁMICOS */}
         <section id="formatos" className="bg-slate-900 py-24 relative overflow-hidden">
-          {/* ... (El resto del código de formatos y el footer se mantienen idénticos) ... */}
           <div className="absolute top-0 left-0 w-full h-full opacity-5 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
           <div className="max-w-7xl mx-auto px-4 relative z-10">
             <div className="text-center mb-16">
               <span className="text-yellow-400 font-black tracking-widest uppercase text-sm mb-2 block">Descargas Necesarias</span>
               <h2 className="text-4xl md:text-5xl font-black text-white mb-4">Formatos Oficiales</h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg">Descargue las plantillas, complételas y adjúntelas en formato PDF o DOCX dentro de la plataforma.</p>
+              <p className="text-slate-400 max-w-2xl mx-auto text-lg">Descargue las plantillas, complételas y adjúntelas dentro de la plataforma al enviar su expediente.</p>
             </div>
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-yellow-400 hover:-translate-y-2 transition-all duration-300 group">
-                <div className="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center text-yellow-400 mb-6 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-all"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
-                <h3 className="font-black text-white text-2xl mb-3">Proyecto CIEI</h3>
-                <p className="text-slate-400 mb-8 font-medium">Estructura oficial y obligatoria para la presentación del protocolo de investigación.</p>
-                <button className="w-full bg-slate-700 text-white font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-colors">Descargar DOCX <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+            
+            {formatos.length === 0 ? (
+              <div className="text-center py-10 bg-slate-800/50 rounded-3xl border border-slate-700 border-dashed">
+                <p className="text-slate-400 font-bold">El administrador aún no ha subido los formatos oficiales.</p>
               </div>
-              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-yellow-400 hover:-translate-y-2 transition-all duration-300 group">
-                <div className="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center text-yellow-400 mb-6 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-all"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div>
-                <h3 className="font-black text-white text-2xl mb-3">Consentimiento</h3>
-                <p className="text-slate-400 mb-8 font-medium">Documento de asentimiento y consentimiento informado para estudios con humanos.</p>
-                <button className="w-full bg-slate-700 text-white font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-colors">Descargar DOCX <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {formatos.map((formato) => {
+                  const esPDF = formato.titulo.toLowerCase().includes('pdf');
+                  return (
+                    <div key={formato.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-yellow-400 hover:-translate-y-2 transition-all duration-300 group flex flex-col">
+                      <div className="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center text-yellow-400 mb-6 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-all">
+                        {esPDF ? (
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        ) : (
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        )}
+                      </div>
+                      <h3 className="font-black text-white text-xl mb-3 flex-1">{formato.titulo}</h3>
+                      
+                      {formato.nombre_archivo_original ? (
+                        <button onClick={() => window.open(`${API_URL}/api/portal/formatos/descargar/${formato.id}`)} className="w-full bg-slate-700 text-white font-extrabold py-3.5 mt-4 rounded-xl flex items-center justify-center gap-2 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-colors shadow-lg">
+                          Descargar Archivo <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        </button>
+                      ) : (
+                        <button disabled className="w-full bg-slate-800 text-slate-500 font-bold py-3.5 mt-4 rounded-xl flex items-center justify-center gap-2 border border-slate-700 cursor-not-allowed">
+                          Archivo no disponible
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-yellow-400 hover:-translate-y-2 transition-all duration-300 group">
-                <div className="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center text-yellow-400 mb-6 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-all"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
-                <h3 className="font-black text-white text-2xl mb-3">Matriz CIEI</h3>
-                <p className="text-slate-400 mb-8 font-medium">Criterios de calificación y pautas éticas que utilizarán los miembros revisores.</p>
-                <button className="w-full bg-slate-700 text-white font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 group-hover:bg-yellow-400 group-hover:text-slate-900 transition-colors">Descargar PDF <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       </main>
 
-      {/* PIE DE PÁGINA */}
+      {/* PIE DE PÁGINA (Con Tooltip KODIAK) */}
       <footer className="bg-slate-950 text-slate-400 pt-20 pb-8 border-t-8 border-red-600 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
         <div className="max-w-7xl mx-auto px-4 relative z-10">
@@ -269,23 +295,69 @@ export default function LandingPage() {
                   <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-red-500 shadow-inner"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
                   <span>ciei.vri@unap.edu.pe</span>
                 </li>
-                <li className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-red-500 shadow-inner"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></div>
-                  <span>992 126 757</span>
-                </li>
               </ul>
             </div>
           </div>
+          
           <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 text-sm font-medium">
             <p className="text-slate-500">© 2026 Universidad Nacional del Altiplano. Todos los derechos reservados.</p>
-            <a href="mailto:eduardobox2@gmail.com" className="relative flex items-center gap-3 bg-slate-900 px-5 py-2.5 rounded-full border border-slate-800 shadow-inner group cursor-pointer hover:border-red-500/30 transition-all">
+            
+            {/* TOOLTIP KODIAK */}
+            <div className="relative group cursor-help flex items-center gap-3 bg-slate-900 px-5 py-2.5 rounded-full border border-slate-800 shadow-inner transition-all hover:border-red-500/30">
               <span className="text-slate-500">Desarrollado por</span>
               <span className="font-black tracking-widest text-white group-hover:text-red-500 transition-colors">@KODIAK</span>
               <img src="/kodiak.png" alt="Kodiak" className="h-8 w-8 object-contain drop-shadow-[0_0_8px_rgba(220,38,38,0.5)] group-hover:scale-110 group-hover:rotate-12 transition-all duration-300" />
-            </a>
+              
+              {/* Burbuja flotante con el correo */}
+              <div className="absolute bottom-[110%] right-0 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50">
+                <div className="bg-slate-800 border border-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xl whitespace-nowrap flex items-center gap-2">
+                  <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                  eduardobox2@gmail.com
+                </div>
+                <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-800 border-b border-r border-slate-700 transform rotate-45"></div>
+              </div>
+            </div>
+
           </div>
         </div>
       </footer>
+
+      {/* MODAL GIGANTE DE AVISOS HISTÓRICOS */}
+      {modalAvisosAbierto && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+          <div className="bg-slate-50 rounded-3xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-fade-in border border-slate-200">
+            <div className="bg-white px-8 py-5 border-b border-slate-200 flex justify-between items-center z-10 shadow-sm">
+              <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                <span className="w-3 h-8 bg-red-600 rounded-full block"></span> Historial de Comunicados
+              </h3>
+              <button onClick={() => setModalAvisosAbierto(false)} className="w-10 h-10 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-full flex items-center justify-center font-bold transition-colors">✕</button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              {avisos.map((aviso) => (
+                <div key={aviso.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6">
+                  {aviso.imagen_url && (
+                    <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden shrink-0">
+                      <img src={aviso.imagen_url} alt="Aviso" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className={`bg-${aviso.color}-100 text-${aviso.color}-800 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider`}>
+                        {aviso.tipo}
+                      </span>
+                      <span className="text-slate-400 text-xs font-bold">{aviso.fecha}</span>
+                    </div>
+                    <h4 className="text-lg font-black text-slate-800 mb-2">{aviso.titulo}</h4>
+                    <p className="text-slate-600 text-sm whitespace-pre-wrap">{aviso.texto}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
